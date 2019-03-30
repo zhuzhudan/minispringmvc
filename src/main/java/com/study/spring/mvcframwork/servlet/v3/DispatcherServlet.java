@@ -26,14 +26,9 @@ public class DispatcherServlet extends HttpServlet {
         private Pattern urlPattern;
         private Method method;
         private Object controller;
-        private Class<?>[] paramTypes;
 
-        public Class<?>[] getParamTypes() {
-            return paramTypes;
-        }
 
         public Pattern getUrlPattern() {
-
             return urlPattern;
         }
 
@@ -46,42 +41,17 @@ public class DispatcherServlet extends HttpServlet {
         }
 
         //形参列表，参数的名字作为key，参数的顺序，位置作为值
-        private Map<String, Integer> paramIndexMapping;
+//        private Map<String, Integer> paramIndexMapping;
 
         public Handler(Pattern urlPattern, Object controller, Method method) {
             this.urlPattern = urlPattern;
             this.method = method;
             this.controller = controller;
 
-            paramTypes = method.getParameterTypes();
-
-            paramIndexMapping = new HashMap<>();
-            putParamIndexMapping(method);
         }
 
 
         private void putParamIndexMapping(Method method) {
-            //提取方法中加了注解的参数
-            Annotation[][] pa = method.getParameterAnnotations();
-            for (int i = 0; i < pa.length; i++){
-                for (Annotation annotation : pa[i]){
-                    if(annotation instanceof MyRequestParam){
-                        String paramName = ((MyRequestParam)annotation).value();
-                        if(!"".equals((paramName.trim()))){
-                            paramIndexMapping.put(paramName, i);
-                        }
-                    }
-                }
-            }
-
-            //提取方法中的request和response参数
-            Class<?>[] paramTypes = method.getParameterTypes();
-            for (int i = 0; i < paramTypes.length; i++){
-                Class<?> type = paramTypes[i];
-                if(type == HttpServletResponse.class || type == HttpServletRequest.class){
-                    paramIndexMapping.put(type.getName(), i);
-                }
-            }
 
         }
     }
@@ -122,27 +92,36 @@ public class DispatcherServlet extends HttpServlet {
         }
 
         //获得方法的形参列表
-        Class<?>[] paramTypes = handler.getParamTypes();
+        Class<?>[] paramTypes = handler.method.getParameterTypes();
         Object[] paramValues = new Object[paramTypes.length];
+        //提取方法中加了注解的参数
+        Annotation[][] pa = handler.method.getParameterAnnotations();
 
         Map<String, String[]> params= req.getParameterMap();
-        for (Map.Entry<String, String[]> param : params.entrySet()) {
-            String value = Arrays.toString(param.getValue()).replaceAll("\\[|\\]","").replaceAll("\\s","");
-            if(!handler.paramIndexMapping.containsKey(param.getKey())){continue;}
 
-            int index = handler.paramIndexMapping.get(param.getKey());
-            paramValues[index] = convert(paramTypes[index], value);
+        for (int i = 0; i < paramTypes.length; i++){
+            Class<?> type = paramTypes[i];
+            if(type == HttpServletResponse.class){
+                paramValues[i] = resp;
+                continue;
+            }else if(type == HttpServletRequest.class){
+                paramValues[i] = req;
+                continue;
+            }
+
+            for (Annotation annotation : pa[i]){
+                if(annotation instanceof MyRequestParam){
+                    String paramName = ((MyRequestParam)annotation).value();
+                    if(!"".equals((paramName.trim())) && params.containsKey(paramName)){
+                        String value = Arrays.toString(params.get(paramName)).replaceAll("\\[|\\]","").replaceAll("\\s","");
+                        paramValues[i] = convert(type, value);
+                        break;
+                    }
+                }
+            }
         }
 
-        if(handler.paramIndexMapping.containsKey(HttpServletRequest.class.getName())){
-            int reqIndex = handler.paramIndexMapping.get(HttpServletRequest.class.getName());
-            paramValues[reqIndex] = req;
-        }
 
-        if(handler.paramIndexMapping.containsKey(HttpServletResponse.class.getName())){
-            int respIndex = handler.paramIndexMapping.get(HttpServletResponse.class.getName());
-            paramValues[respIndex] = resp;
-        }
 
         Object returnValue = handler.method.invoke(handler.controller, paramValues);
         if(returnValue == null || returnValue instanceof Void){return;}
