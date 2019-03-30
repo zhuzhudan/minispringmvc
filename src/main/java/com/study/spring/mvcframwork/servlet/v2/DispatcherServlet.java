@@ -66,6 +66,8 @@ public class DispatcherServlet extends HttpServlet {
         Map<String, String[]> params = req.getParameterMap();
         //获取方法的形参列表
         Class<?>[] parameterTypes = method.getParameterTypes();
+        //拿到所有参数包括HttpServletRequest和HttpServletResponse
+        Annotation[][] pa = method.getParameterAnnotations();
         //赋值参数的位置
         Object[] paramValues = new Object[parameterTypes.length];
         for (int i = 0; i < parameterTypes.length; i++) {
@@ -77,8 +79,6 @@ public class DispatcherServlet extends HttpServlet {
                 paramValues[i] = resp;
                 continue;
             }
-            //拿到所有参数包括HttpServletRequest和HttpServletResponse
-            Annotation[][] pa = method.getParameterAnnotations();
             //只取当前顺序下的那个参数
             for (Annotation a : pa[i]) {
                 if (a instanceof MyRequestParam) {
